@@ -1,0 +1,16 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="#10B981" stroke="#059669" stroke-width="4"/>
+
+  <!-- Sound waves -->
+  <path d="M60 80 Q70 70 80 80 Q70 90 60 80" fill="white" opacity="0.8"/>
+  <path d="M90 75 Q100 65 110 75 Q100 85 90 75" fill="white" opacity="0.9"/>
+  <path d="M120 70 Q130 60 140 70 Q130 80 120 70" fill="white"/>
+
+  <!-- Ear icon -->
+  <path d="M70 100 Q60 90 60 100 Q60 110 70 120 Q80 110 80 100 Q75 95 70 100 Z" fill="white"/>
+  <path d="M75 95 Q80 90 85 95 Q80 100 75 95" fill="#10B981"/>
+
+  <!-- Text -->
+  <text x="100" y="160" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" font-weight="bold">NoiseMapper</text>
+</svg>
