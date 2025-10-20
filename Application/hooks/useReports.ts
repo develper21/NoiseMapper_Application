@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, reports as reportsApi, hotspots as hotspotsApi } from '../lib/supabase';
 import type { Report, Hotspot } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { useAuth } from './useAuth';
