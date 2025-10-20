@@ -14,7 +14,8 @@ import { useTheme } from '../../hooks/useTheme';
 import { useLocation } from '../../hooks/useLocation';
 import { useReports } from '../../hooks/useReports';
 import { Report } from '../../lib/supabase';
-import { noiseUtils, MAP_CONFIG } from '../../lib/utils';
+import { noiseUtils } from '../../lib/utils';
+import { MAP_CONFIG } from '../../constants/Config';
 import MapFilters from '../../components/MapFilters';
 
 export default function MapScreen() {
