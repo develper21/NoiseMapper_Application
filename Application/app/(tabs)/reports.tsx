@@ -16,6 +16,7 @@ import { useReports } from '../../hooks/useReports';
 import { useAuth } from '../../hooks/useAuth';
 import { Report } from '../../lib/supabase';
 import HotspotCard from '../../components/HotspotCard';
+import { NOISE_TYPES } from '../../constants/Config';
 
 export default function ReportsScreen() {
   const { colors } = useTheme();
@@ -53,14 +54,6 @@ export default function ReportsScreen() {
     return filtered;
   }, [reports, userReports, activeTab, searchQuery, filterType]);
 
-  // NOISE_TYPES definition added to fix "Cannot find name 'NOISE_TYPES'" lint error
-  const NOISE_TYPES: Record<Report['noise_type'], { icon: string; color: string }> = {
-    construction: { icon: 'build', color: colors.warning || '#FFA500' },
-    traffic: { icon: 'commute', color: colors.error || '#FF3B30' },
-    events: { icon: 'event', color: colors.primary || '#6200ea' },
-    industrial: { icon: 'factory', color: colors.primary || '#6200ea' },
-    other: { icon: 'help-outline', color: colors.textSecondary || '#888' },
-  };
 
   const getNoiseTypeIcon = (type: Report['noise_type']) => {
     return NOISE_TYPES[type]?.icon || 'help-outline';
