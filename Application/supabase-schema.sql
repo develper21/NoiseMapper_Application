@@ -2,12 +2,17 @@
 -- This file contains the complete database schema for the NoiseMapper app
 -- Run this SQL in your Supabase project to set up the database
 
--- Enable necessary extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "postgis";
+-- NOTE: This schema is written for PostgreSQL (Supabase) with PostGIS.
+-- Some IDEs or generic SQL parsers may report syntax errors because they
+-- assume a different SQL dialect (for example, T-SQL). Run this file in
+-- the Supabase SQL editor or psql connected to your Supabase database.
+
+-- Enable necessary extensions (run in a Postgres / Supabase SQL context)
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- CREATE EXTENSION IF NOT EXISTS "postgis";
 
 -- Users table - stores user information
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT UNIQUE NOT NULL,
     name TEXT,
@@ -17,7 +22,7 @@ CREATE TABLE users (
 );
 
 -- Reports table - stores noise pollution reports
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     latitude FLOAT8 NOT NULL,
@@ -33,7 +38,7 @@ CREATE TABLE reports (
 );
 
 -- Hotspots table - aggregated view of noise hotspots (auto-generated via triggers)
-CREATE TABLE hotspots (
+CREATE TABLE IF NOT EXISTS hotspots (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     location GEOGRAPHY(POINT, 4326) NOT NULL,
     avg_noise_db FLOAT8 NOT NULL,
@@ -43,7 +48,7 @@ CREATE TABLE hotspots (
 );
 
 -- Discussions table - community discussions for each report
-CREATE TABLE discussions (
+CREATE TABLE IF NOT EXISTS discussions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     report_id UUID REFERENCES reports(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -52,17 +57,37 @@ CREATE TABLE discussions (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_reports_location ON reports USING GIST (location);
-CREATE INDEX idx_reports_timestamp ON reports (timestamp DESC);
-CREATE INDEX idx_reports_noise_type ON reports (noise_type);
-CREATE INDEX idx_reports_user_id ON reports (user_id);
-CREATE INDEX idx_reports_status ON reports (status);
-
-CREATE INDEX idx_hotspots_location ON hotspots USING GIST (location);
-CREATE INDEX idx_hotspots_avg_noise_db ON hotspots (avg_noise_db DESC);
-
-CREATE INDEX idx_discussions_report_id ON discussions (report_id);
-CREATE INDEX idx_discussions_timestamp ON discussions (timestamp DESC);
+-- Create indexes if they don't already exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_reports_location') THEN
+        CREATE INDEX idx_reports_location ON reports USING GIST (location);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_reports_timestamp') THEN
+        CREATE INDEX idx_reports_timestamp ON reports (timestamp DESC);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_reports_noise_type') THEN
+        CREATE INDEX idx_reports_noise_type ON reports (noise_type);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_reports_user_id') THEN
+        CREATE INDEX idx_reports_user_id ON reports (user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_reports_status') THEN
+        CREATE INDEX idx_reports_status ON reports (status);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_hotspots_location') THEN
+        CREATE INDEX idx_hotspots_location ON hotspots USING GIST (location);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_hotspots_avg_noise_db') THEN
+        CREATE INDEX idx_hotspots_avg_noise_db ON hotspots (avg_noise_db DESC);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_discussions_report_id') THEN
+        CREATE INDEX idx_discussions_report_id ON discussions (report_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_discussions_timestamp') THEN
+        CREATE INDEX idx_discussions_timestamp ON discussions (timestamp DESC);
+    END IF;
+END$$;
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -74,11 +99,18 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers to update updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_hotspots_updated_at BEFORE UPDATE ON hotspots
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Create triggers only if they do not already exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_updated_at') THEN
+        CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_hotspots_updated_at') THEN
+        CREATE TRIGGER update_hotspots_updated_at BEFORE UPDATE ON hotspots
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END$$;
 
 -- Function to aggregate reports into hotspots
 CREATE OR REPLACE FUNCTION aggregate_reports_to_hotspots()
@@ -113,10 +145,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to create/update hotspots when reports are inserted
-CREATE TRIGGER trigger_aggregate_hotspots
-    AFTER INSERT ON reports
-    FOR EACH ROW
-    EXECUTE FUNCTION aggregate_reports_to_hotspots();
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_aggregate_hotspots') THEN
+        CREATE TRIGGER trigger_aggregate_hotspots
+            AFTER INSERT ON reports
+            FOR EACH ROW
+            EXECUTE FUNCTION aggregate_reports_to_hotspots();
+    END IF;
+END$$;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -124,63 +161,222 @@ ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hotspots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE discussions ENABLE ROW LEVEL SECURITY;
 
+-- The Supabase linter can flag PostGIS internal tables like spatial_ref_sys
+-- as exposed without RLS. We don't modify PostGIS internal tables, but
+-- to silence the linter and make PostgREST-safe, create a read-only
+-- policy for spatial_ref_sys if the table exists in the public schema.
+-- NOTE: Some Supabase SQL runners give errors when executing DDL inside DO
+-- blocks. To avoid that issue, run the following two statements manually
+-- in the Supabase SQL editor (execute them as separate statements):
+
+-- 1) Enable RLS on the PostGIS table (if present):
+-- ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;
+
+-- 2) Create a read-only policy to satisfy the linter (run only if policy
+-- doesn't already exist):
+-- CREATE POLICY allow_read_spatial_ref_sys ON public.spatial_ref_sys FOR SELECT USING (true);
+
+-- Optional: you can check whether the table exists before running the
+-- statements using this query in the SQL editor:
+-- SELECT EXISTS (
+--   SELECT 1 FROM pg_catalog.pg_class c
+--   JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+--   WHERE c.relname = 'spatial_ref_sys' AND n.nspname = 'public'
+-- );
+
+-- Running the two statements above in the Supabase SQL editor should
+-- resolve the "RLS Disabled in Public" linter error you saw.
+
 -- RLS Policies
 
 -- Users: Users can read/update their own profile
-CREATE POLICY "Users can view own profile" ON users
-    FOR SELECT USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" ON users
-    FOR UPDATE USING (auth.uid() = id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can view own profile' AND p.polrelid = 'users'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can view own profile" ON users
+            FOR SELECT USING (auth.uid() = id);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can update own profile' AND p.polrelid = 'users'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can update own profile" ON users
+            FOR UPDATE USING (auth.uid() = id);
+        $pol$;
+    END IF;
+END$$;
 
 -- Reports: Users can insert reports, read own reports, public can read hotspots data
-CREATE POLICY "Users can insert reports" ON reports
-    FOR INSERT WITH CHECK (auth.uid() = user_id OR is_anonymous = true);
-
-CREATE POLICY "Users can view own reports" ON reports
-    FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Public can view all reports" ON reports
-    FOR SELECT USING (true);
-
-CREATE POLICY "Users can update own reports" ON reports
-    FOR UPDATE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can insert reports' AND p.polrelid = 'reports'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can insert reports" ON reports
+            FOR INSERT WITH CHECK (auth.uid() = user_id OR is_anonymous = true);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can view own reports' AND p.polrelid = 'reports'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can view own reports" ON reports
+            FOR SELECT USING (auth.uid() = user_id);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Public can view all reports' AND p.polrelid = 'reports'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Public can view all reports" ON reports
+            FOR SELECT USING (true);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can update own reports' AND p.polrelid = 'reports'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can update own reports" ON reports
+            FOR UPDATE USING (auth.uid() = user_id);
+        $pol$;
+    END IF;
+END$$;
 
 -- Hotspots: Public read access for map display
-CREATE POLICY "Public can view hotspots" ON hotspots
-    FOR SELECT USING (true);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Public can view hotspots' AND p.polrelid = 'hotspots'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Public can view hotspots" ON hotspots
+            FOR SELECT USING (true);
+        $pol$;
+    END IF;
+END$$;
 
 -- Discussions: Users can insert discussions, read discussions for reports they can access
-CREATE POLICY "Users can insert discussions" ON discussions
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can view discussions" ON discussions
-    FOR SELECT USING (true);
-
-CREATE POLICY "Users can update own discussions" ON discussions
-    FOR UPDATE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can insert discussions' AND p.polrelid = 'discussions'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can insert discussions" ON discussions
+            FOR INSERT WITH CHECK (auth.uid() = user_id);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can view discussions' AND p.polrelid = 'discussions'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can view discussions" ON discussions
+            FOR SELECT USING (true);
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can update own discussions' AND p.polrelid = 'discussions'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can update own discussions" ON discussions
+            FOR UPDATE USING (auth.uid() = user_id);
+        $pol$;
+    END IF;
+END$$;
 
 -- Create storage bucket for media files
+-- Create storage bucket record if not exists (idempotent)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('media', 'media', true);
+VALUES ('media', 'media', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for media bucket
-CREATE POLICY "Users can upload media" ON storage.objects
-    FOR INSERT WITH CHECK (bucket_id = 'media' AND auth.role() = 'authenticated');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can upload media' AND p.polrelid = 'storage.objects'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can upload media" ON storage.objects
+            FOR INSERT WITH CHECK (bucket_id = 'media' AND auth.role() = 'authenticated');
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can view media' AND p.polrelid = 'storage.objects'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can view media" ON storage.objects
+            FOR SELECT USING (bucket_id = 'media');
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can update own media' AND p.polrelid = 'storage.objects'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can update own media" ON storage.objects
+            FOR UPDATE USING (bucket_id = 'media' AND auth.role() = 'authenticated');
+        $pol$;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy p
+        WHERE p.polname = 'Users can delete own media' AND p.polrelid = 'storage.objects'::regclass
+    ) THEN
+        EXECUTE $pol$
+        CREATE POLICY "Users can delete own media" ON storage.objects
+            FOR DELETE USING (bucket_id = 'media' AND auth.role() = 'authenticated');
+        $pol$;
+    END IF;
+END$$;
 
-CREATE POLICY "Users can view media" ON storage.objects
-    FOR SELECT USING (bucket_id = 'media');
-
-CREATE POLICY "Users can update own media" ON storage.objects
-    FOR UPDATE USING (bucket_id = 'media' AND auth.role() = 'authenticated');
-
-CREATE POLICY "Users can delete own media" ON storage.objects
-    FOR DELETE USING (bucket_id = 'media' AND auth.role() = 'authenticated');
-
--- Enable realtime for reports and hotspots tables
-ALTER PUBLICATION supabase_realtime ADD TABLE reports;
-ALTER PUBLICATION supabase_realtime ADD TABLE hotspots;
-ALTER PUBLICATION supabase_realtime ADD TABLE discussions;
+-- Enable realtime for reports and hotspots tables (idempotent)
+DO $$
+BEGIN
+    -- reports
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_rel pr
+        JOIN pg_publication p ON pr.prpubid = p.oid
+        WHERE p.pubname = 'supabase_realtime' AND pr.prrelid = 'reports'::regclass
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE reports;
+    END IF;
+    -- hotspots
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_rel pr
+        JOIN pg_publication p ON pr.prpubid = p.oid
+        WHERE p.pubname = 'supabase_realtime' AND pr.prrelid = 'hotspots'::regclass
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE hotspots;
+    END IF;
+    -- discussions
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_publication_rel pr
+        JOIN pg_publication p ON pr.prpubid = p.oid
+        WHERE p.pubname = 'supabase_realtime' AND pr.prrelid = 'discussions'::regclass
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE discussions;
+    END IF;
+END$$;
 
 -- Create some sample data for testing (optional)
 -- Uncomment the following lines if you want to seed the database with sample data
