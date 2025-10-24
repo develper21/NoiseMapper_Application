@@ -12,7 +12,8 @@
     "eject": "expo eject",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "type-check": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "check:demo": "npm run type-check && CI=1 npx expo-doctor --verbose"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -20,6 +21,7 @@
     "@supabase/supabase-js": "^2.75.1",
     "@tanstack/react-query": "^5.90.5",
     "expo": "~54.0.13",
+    "expo-audio": "~1.0.13",
     "expo-av": "~16.0.7",
     "expo-constants": "~18.0.9",
     "expo-device": "~8.0.9",
@@ -35,6 +37,7 @@
     "expo-router": "~6.0.12",
     "expo-sharing": "~14.0.7",
     "expo-status-bar": "~3.0.8",
+    "expo-video": "~3.0.11",
     "nativewind": "^4.2.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -45,13 +48,13 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1",
     "react-native-worklets-core": "^1.6.2",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@types/react": "~19.1.10",
-    "@types/react-native": "~0.73.0",
     "eslint": "^9.17.0",
     "eslint-config-expo": "~10.0.0",
     "jest": "^29.7.0",
