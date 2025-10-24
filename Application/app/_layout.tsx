@@ -38,41 +38,16 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'fade',
-              }}
-            >
-              <Stack.Screen
-                name="(tabs)"
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="auth"
-                options={{
-                  headerShown: false,
-                  animation: 'slide_from_bottom',
-                }}
-              />
-              <Stack.Screen
-                name="report"
-                options={{
-                  headerShown: false,
-                  presentation: 'modal',
-                  animation: 'slide_from_bottom',
-                }}
-              />
-              <Stack.Screen
-                name="onboarding"
-                options={{
-                  headerShown: false,
-                  animation: 'fade',
-                }}
-              />
-            </Stack>
+            {/* Let file-system based routing handle available screens.
+                Avoid declaring Stack.Screen entries here because they
+                can conflict with routes created from the `app/` folder
+                and cause warnings like "No route named 'auth' exists"
+                or "Too many screens defined". If you need a modal
+                presentation for a specific file, create a parallel
+                file with the appropriate naming (for example
+                `report.tsx` already exists and will be picked up).
+            */}
+            <Stack />
             <StatusBar style="auto" />
           </AuthProvider>
         </QueryClientProvider>
