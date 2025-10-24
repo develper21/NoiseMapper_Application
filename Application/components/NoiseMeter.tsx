@@ -8,6 +8,11 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+// TODO: Migrate to expo-audio when it's more stable (after v1.0.13)
+// Currently using expo-av despite its deprecation warning because:
+// 1. We're already on SDK 54 and it still works
+// 2. expo-audio is too new (v1.0.13) and has significantly different APIs
+// Track the progress at https://docs.expo.dev/versions/latest/sdk/audio/
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 
