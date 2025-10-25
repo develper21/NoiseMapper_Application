@@ -4,11 +4,6 @@ import { useAppStore } from '../lib/store';
 import { User } from '../lib/supabase';
 import * as Haptics from 'expo-haptics';
 
-/**
- * Custom hook for authentication management
- * Handles login, signup, logout, and user session management
- */
-
 export interface AuthError {
   message: string;
   code?: string;
@@ -25,24 +20,60 @@ export const useAuth = () => {
 
   // Initialize auth state on app start
   useEffect(() => {
-    initializeAuth();
+    let isMounted = true;
+    let authSubscription: { unsubscribe: () => void } | null = null;
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          await handleSignIn(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          handleSignOut();
+    const initialize = async () => {
+      if (!isMounted) return;
+      
+      try {
+        // Get initial session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
         }
 
-        setIsInitializing(false);
-      }
-    );
+        if (session?.user) {
+          await handleSignIn(session.user);
+        } else {
+          setUser(null);
+          setAuthenticated(false);
+        }
 
-    return () => subscription.unsubscribe();
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (!isMounted) return;
+
+            if (event === 'SIGNED_IN' && session?.user) {
+              await handleSignIn(session.user);
+            } else if (event === 'SIGNED_OUT') {
+              handleSignOut();
+            }
+          }
+        );
+
+        authSubscription = subscription;
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false);
+          setLoading(false);
+        }
+      }
+    };
+
+    initialize();
+
+    return () => {
+      isMounted = false;
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+    };
   }, []);
 
   const initializeAuth = async () => {
