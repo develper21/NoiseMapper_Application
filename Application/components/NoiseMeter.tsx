@@ -8,14 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-// TODO: Migrate to expo-audio when it's more stable (after v1.0.13)
-// Currently using expo-av despite its deprecation warning because:
-// 1. We're already on SDK 54 and it still works
-// 2. expo-audio is too new (v1.0.13) and has significantly different APIs
-// Track the progress at https://docs.expo.dev/versions/latest/sdk/audio/
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-
 import { useTheme } from '../hooks/useTheme';
 import { noiseUtils, audioUtils } from '../lib/utils';
 
@@ -81,10 +75,12 @@ const NoiseMeter: React.FC<NoiseMeterProps> = ({
 
   const requestMicrophonePermission = async () => {
     try {
+      // expo-av uses requestPermissionsAsync which returns { status }
       const { status } = await Audio.requestPermissionsAsync();
-      setPermission(status === 'granted');
+      const granted = status === 'granted';
+      setPermission(granted);
 
-      if (status !== 'granted') {
+      if (!granted) {
         Alert.alert(
           'Microphone Permission Required',
           'This app needs access to your microphone to measure noise levels.',
@@ -114,12 +110,11 @@ const NoiseMeter: React.FC<NoiseMeterProps> = ({
 
       const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        (status) => {
+        (status: any) => {
           // This callback is called periodically during recording
           // In a real implementation, you'd analyze the audio data here
           if (status.isRecording && status.durationMillis > 0) {
-            // Simulate noise level measurement
-            // In production, you'd use proper audio analysis libraries
+            // Simulate noise level measurement (placeholder)
             const simulatedDb = Math.random() * 40 + 40; // 40-80 dB range for demo
             setCurrentDb(simulatedDb);
             setMaxDb(prev => Math.max(prev, simulatedDb));
