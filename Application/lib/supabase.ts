@@ -3,6 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants/Config';
 
 // Initialize Supabase client with React Native AsyncStorage adapter
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  // Log a clear warning for developers — this will help during development
+  // and avoid leaving the app in an indefinite loading state.
+  // The UI will show a ConfigError screen (app/_layout.tsx) when these
+  // values are not present.
+  // eslint-disable-next-line no-console
+  console.warn('[supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY. Supabase functionality will be limited.');
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: AsyncStorage,
