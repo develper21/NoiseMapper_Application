@@ -8,11 +8,14 @@ import Constants from 'expo-constants';
 // `Constants.manifest.extra` for backwards compatibility.
 const expoExtra = (Constants.expoConfig && Constants.expoConfig.extra) || Constants.manifest?.extra || {};
 
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || expoExtra.SUPABASE_URL;
-export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || expoExtra.SUPABASE_ANON_KEY;
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Google Maps API Key (get from Google Cloud Console)
-export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || expoExtra.GOOGLE_MAPS_API_KEY;
+export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+// Whether Supabase configuration is present
+export const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 // App configuration
 export const APP_CONFIG = {
