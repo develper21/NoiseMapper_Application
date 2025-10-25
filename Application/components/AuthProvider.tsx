@@ -1,10 +1,6 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
-
-/**
- * Authentication context provider
- * Provides authentication state and actions throughout the app
- */
 
 interface AuthContextType {
   user: any;
@@ -24,6 +20,18 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const auth = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!auth.isInitializing) {
+      if (!auth.isAuthenticated) {
+        router.replace('/auth');
+      } else if (pathname === '/auth') {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [auth.isAuthenticated, auth.isInitializing, pathname]);
 
   const value: AuthContextType = {
     user: auth.user,
