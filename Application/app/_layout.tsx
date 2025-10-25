@@ -8,6 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { AuthProvider } from '../components/AuthProvider';
 import LoadingScreen from '../components/LoadingScreen';
+import ConfigError from '../components/ConfigError';
+import { HAS_SUPABASE } from '../constants/Config';
 
 /**
  * Root layout for the NoiseMapper app
@@ -25,29 +27,50 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function RootLayout() {
-  const { isReady, isLoading } = useAuth();
+export const unstable_settings = {
+  // Ensure that reloading on `/auth` keeps a back button present
+  initialRouteName: '(tabs)',
+};
 
-  // Show loading screen while auth is initializing
-  if (!isReady || isLoading) {
+export default function RootLayout() {
+  const { isReady, isLoading, isAuthenticated } = useAuth();
+
+  // Developer debug: surface whether Supabase config is available (masked)
+  try {
+    const mask = (s?: string) => (s ? `${s.slice(0, 8)}...${s.slice(-8)}` : 'undefined');
+    // eslint-disable-next-line no-console
+    console.log('[startup] HAS_SUPABASE=', HAS_SUPABASE);
+    // eslint-disable-next-line no-console
+    console.log('[startup] SUPABASE_URL=', mask(process.env.EXPO_PUBLIC_SUPABASE_URL));
+  } catch (e) {
+    // ignore in production
+  }
+
+  // If supabase config missing, show helpful error instead of infinite loader
+  if (!HAS_SUPABASE) {
+    return <ConfigError message="Missing Supabase configuration (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY)" />;
+  }
+
+  // Only show loading screen during initial auth setup
+  if (!isReady) {
     return <LoadingScreen />;
   }
+
+  // Don't block rendering for general loading states
+  // This prevents the infinite loading screen issue
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            {/* Let file-system based routing handle available screens.
-                Avoid declaring Stack.Screen entries here because they
-                can conflict with routes created from the `app/` folder
-                and cause warnings like "No route named 'auth' exists"
-                or "Too many screens defined". If you need a modal
-                presentation for a specific file, create a parallel
-                file with the appropriate naming (for example
-                `report.tsx` already exists and will be picked up).
-            */}
-            <Stack />
+            <Stack screenOptions={{
+              headerShown: false,
+            }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="auth" options={{ headerShown: false }} />
+              <Stack.Screen name="report" options={{ presentation: 'modal' }} />
+            </Stack>
             <StatusBar style="auto" />
           </AuthProvider>
         </QueryClientProvider>
