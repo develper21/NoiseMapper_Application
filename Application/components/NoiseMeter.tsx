@@ -11,7 +11,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../hooks/useTheme';
-import { noiseUtils, audioUtils } from '../lib/utils';
+import { noiseUtils } from '../lib/utils';
 
 /**
  * NoiseMeter component - Real-time noise level meter
