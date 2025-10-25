@@ -1,13 +1,3 @@
-// Configuration constants for the NoiseMapper app
-// Import environment variables using Expo's Constants
-import Constants from 'expo-constants';
-
-// Expo provides environment variables in different shapes depending on
-// whether you're running in managed, dev client, or EAS build. Check
-// both `process.env` (for metro/EAS) and `Constants.expoConfig.extra` /
-// `Constants.manifest.extra` for backwards compatibility.
-const expoExtra = (Constants.expoConfig && Constants.expoConfig.extra) || Constants.manifest?.extra || {};
-
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
