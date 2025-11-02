@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { User } from '../lib/supabase';
 import * as Haptics from 'expo-haptics';
+import { showNotification } from '../utils/notifications';
 
 export interface AuthError {
   message: string;
@@ -18,7 +19,6 @@ export const useAuth = () => {
   const { user, isAuthenticated, isLoading, setUser, setAuthenticated, setLoading } = useAppStore();
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Initialize auth state on app start
   useEffect(() => {
     let isMounted = true;
     let authSubscription: { unsubscribe: () => void } | null = null;
@@ -27,16 +27,20 @@ export const useAuth = () => {
       if (!isMounted) return;
       
       try {
+        setLoading(true);
+        
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
+          showNotification('error', 'Authentication Error', 'Failed to check authentication status');
           return;
         }
 
         if (session?.user) {
           await handleSignIn(session.user);
+          showNotification('success', 'Welcome back!', 'You have been automatically signed in');
         } else {
           setUser(null);
           setAuthenticated(false);
@@ -47,21 +51,35 @@ export const useAuth = () => {
           async (event, session) => {
             if (!isMounted) return;
 
-            if (event === 'SIGNED_IN' && session?.user) {
-              await handleSignIn(session.user);
-            } else if (event === 'SIGNED_OUT') {
-              handleSignOut();
+            try {
+              if (event === 'SIGNED_IN' && session?.user) {
+                await handleSignIn(session.user);
+              } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setAuthenticated(false);
+                showNotification('info', 'Signed out', 'You have been signed out');
+              } else if (event === 'TOKEN_REFRESHED') {
+                // Handle token refresh
+                console.log('Token refreshed');
+              } else if (event === 'USER_UPDATED') {
+                // Handle user update
+                console.log('User updated');
+              }
+            } catch (error) {
+              console.error('Auth state change error:', error);
+              showNotification('error', 'Authentication Error', 'An error occurred during authentication');
             }
           }
         );
 
         authSubscription = subscription;
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('Auth initialization error:', error);
+        showNotification('error', 'Authentication Error', 'Failed to initialize authentication');
       } finally {
         if (isMounted) {
-          setIsInitializing(false);
           setLoading(false);
+          setIsInitializing(false);
         }
       }
     };
@@ -109,7 +127,7 @@ export const useAuth = () => {
         .eq('id', authUser.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // Not found error
+      if (error && (error as any).code !== 'PGRST116') { // Not found error
         console.error('Error fetching user profile:', error);
       }
 
