@@ -1,3 +1,4 @@
+// app/(tabs)/map.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,29 +7,31 @@ import {
   Text,
   Modal,
   Alert,
+  Platform,
+  Dimensions,
 } from 'react-native';
-// import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
-
 import { useTheme } from '../../hooks/useTheme';
 import { useLocation } from '../../hooks/useLocation';
 import { useReports } from '../../hooks/useReports';
 import { Report } from '../../lib/supabase';
 import { noiseUtils } from '../../lib/utils';
-import { MAP_CONFIG } from '../../constants/Config';
+import { MAP_CONFIG, NOISE_THRESHOLDS } from '../../constants/Config';
 import MapFilters from '../../components/MapFilters';
+
+const { width, height } = Dimensions.get('window');
 
 export default function MapScreen() {
   const { colors } = useTheme();
   const { location, getCurrentLocation } = useLocation();
-
-    const [mapRegion, setMapRegion] = useState({
-      latitude: MAP_CONFIG.defaultLatitude,
-      longitude: MAP_CONFIG.defaultLongitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    });
-
+  const { reports, loading, error } = useReports();
+  const [mapRegion, setMapRegion] = useState<Region>({
+    latitude: MAP_CONFIG.defaultLatitude,
+    longitude: MAP_CONFIG.defaultLongitude,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -61,10 +64,13 @@ export default function MapScreen() {
   };
 
   const getMarkerColor = (noiseDb: number) => {
-    return noiseUtils.getNoiseColor(noiseDb);
+    if (noiseDb < NOISE_THRESHOLDS.low) return '#10B981'; // Green
+    if (noiseDb < NOISE_THRESHOLDS.moderate) return '#F59E0B'; // Yellow
+    if (noiseDb < NOISE_THRESHOLDS.high) return '#F97316'; // Orange
+    return '#EF4444'; // Red
   };
 
-  const getMarkerIcon = (noiseType: Report['noise_type']) => {
+  const getMarkerIcon = (noiseType: string) => {
     switch (noiseType) {
       case 'traffic': return 'directions-car';
       case 'construction': return 'construction';
@@ -76,16 +82,34 @@ export default function MapScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Map View - Temporarily disabled for web compatibility */}
-      <View style={[styles.mapPlaceholder, { backgroundColor: colors.surface }]}>
-        <MaterialIcons name="map" size={48} color={colors.textSecondary} />
-        <Text style={[styles.mapPlaceholderText, { color: colors.textSecondary }]}>
-          Interactive Map Coming Soon
-        </Text>
-        <Text style={[styles.mapPlaceholderSubtext, { color: colors.textDisabled }]}>
-          Map functionality will be available in the mobile app
-        </Text>
-      </View>
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        region={mapRegion}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={true}
+        onRegionChangeComplete={setMapRegion}
+      >
+        {reports?.map((report) => (
+          <Marker
+            key={report.id}
+            coordinate={{
+              latitude: report.latitude,
+              longitude: report.longitude,
+            }}
+            onPress={() => handleMarkerPress(report)}
+          >
+            <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(report.noise_db) }]}>
+              <MaterialIcons 
+                name={getMarkerIcon(report.noise_type)} 
+                size={20} 
+                color="white" 
+              />
+            </View>
+          </Marker>
+        ))}
+      </MapView>
 
       {/* Top Controls */}
       <View style={[styles.topControls, { backgroundColor: colors.surface }]}>
@@ -116,7 +140,7 @@ export default function MapScreen() {
 
           <View style={styles.cardContent}>
             <View style={styles.noiseInfo}>
-              <Text style={[styles.noiseLevel, { color: noiseUtils.getNoiseColor(selectedReport.noise_db) }]}>
+              <Text style={[styles.noiseLevel, { color: getMarkerColor(selectedReport.noise_db) }]}>
                 {noiseUtils.formatDb(selectedReport.noise_db)}
               </Text>
               <Text style={[styles.noiseType, { color: colors.textSecondary }]}>
@@ -157,30 +181,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    flex: 1,
-  },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  mapPlaceholderText: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  mapPlaceholderSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
+    ...StyleSheet.absoluteFillObject,
   },
   topControls: {
     position: 'absolute',
     top: 50,
     right: 20,
     gap: 12,
+    borderRadius: 24,
+    padding: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   controlButton: {
     width: 44,
@@ -188,44 +202,39 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
     borderWidth: 1,
+  },
+  markerContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   bottomCard: {
     position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   closeButton: {
     position: 'absolute',
     top: 12,
     right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
     zIndex: 1,
   },
   cardContent: {
@@ -234,20 +243,19 @@ const styles = StyleSheet.create({
   noiseInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 8,
   },
   noiseLevel: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginRight: 12,
   },
   noiseType: {
-    fontSize: 14,
+    fontSize: 16,
     textTransform: 'capitalize',
   },
   description: {
     fontSize: 14,
-    lineHeight: 20,
     marginBottom: 8,
   },
   healthRisk: {
