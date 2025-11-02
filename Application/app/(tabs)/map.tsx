@@ -1,4 +1,3 @@
-// app/(tabs)/map.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,6 +8,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -25,7 +25,10 @@ const { width, height } = Dimensions.get('window');
 export default function MapScreen() {
   const { colors } = useTheme();
   const { location, getCurrentLocation } = useLocation();
-  const { reports, loading, error } = useReports();
+
+  // <-- FIX: use isLoading (returned by the hook) instead of non-existent `loading`
+  const { reports = [], isLoading, error } = useReports();
+
   const [mapRegion, setMapRegion] = useState<Region>({
     latitude: MAP_CONFIG.defaultLatitude,
     longitude: MAP_CONFIG.defaultLongitude,
@@ -48,7 +51,15 @@ export default function MapScreen() {
   }, [location]);
 
   const handleMarkerPress = (report: Report) => {
-    setSelectedReport(report);
+    // show small confirmation on web/desktop, still open bottom card on all platforms
+    if (Platform.OS === 'web') {
+      Alert.alert('Report selected', `Noise: ${report.noise_db} dB\nType: ${report.noise_type}`, [
+        { text: 'Close', style: 'cancel' },
+        { text: 'View', onPress: () => setSelectedReport(report) },
+      ]);
+    } else {
+      setSelectedReport(report);
+    }
   };
 
   const handleCenterOnLocation = async () => {
@@ -60,6 +71,9 @@ export default function MapScreen() {
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       });
+    } else {
+      // Use Alert (previously unused import) to notify user if location is unavailable
+      Alert.alert('Location error', 'Unable to determine your current location. Please enable location services.');
     }
   };
 
@@ -87,7 +101,8 @@ export default function MapScreen() {
         provider={PROVIDER_GOOGLE}
         region={mapRegion}
         showsUserLocation={true}
-        showsMyLocationButton={false}
+        // Use Platform (previously unused) to control native location button visibility
+        showsMyLocationButton={Platform.OS === 'android'}
         showsCompass={true}
         onRegionChangeComplete={setMapRegion}
       >
@@ -101,15 +116,23 @@ export default function MapScreen() {
             onPress={() => handleMarkerPress(report)}
           >
             <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(report.noise_db) }]}>
-              <MaterialIcons 
-                name={getMarkerIcon(report.noise_type)} 
-                size={20} 
-                color="white" 
+              <MaterialIcons
+                name={getMarkerIcon(report.noise_type)}
+                size={20}
+                color="white"
               />
             </View>
           </Marker>
         ))}
       </MapView>
+
+      {/* Loading indicator using isLoading (fixed and now used) */}
+      {isLoading && (
+        <View style={[styles.loadingOverlay, { backgroundColor: colors.surface + 'CC' }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 8, color: colors.text }}>Loading reports...</Text>
+        </View>
+      )}
 
       {/* Top Controls */}
       <View style={[styles.topControls, { backgroundColor: colors.surface }]}>
@@ -261,5 +284,20 @@ const styles = StyleSheet.create({
   healthRisk: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: (width / 2) - 80,
+    width: 160,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 });
