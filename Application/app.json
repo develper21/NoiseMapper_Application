@@ -58,7 +58,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#10B981"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
