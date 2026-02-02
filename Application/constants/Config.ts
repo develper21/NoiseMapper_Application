@@ -1,11 +1,8 @@
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
 // Google Maps API Key (get from Google Cloud Console)
 export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-// Whether Supabase configuration is present
-export const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+// API Configuration
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001/api';
 
 // App configuration
 export const APP_CONFIG = {
