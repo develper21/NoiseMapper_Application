@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Report } from '../lib/supabase';
+import { Report } from '../lib/types';
 import { useTheme } from '../hooks/useTheme';
 import { noiseUtils, dateUtils } from '../lib/utils';
 
@@ -80,7 +80,7 @@ const HotspotCard: React.FC<HotspotCardProps> = ({ report, style, onPress }) => 
       {/* Footer with timestamp and anonymous indicator */}
       <View style={styles.footer}>
         <Text style={[styles.timestamp, { color: colors.textDisabled }]}>
-          {dateUtils.getTimeAgo(new Date(report.timestamp))}
+          {dateUtils.getTimeAgo(new Date(report.created_at))}
         </Text>
         {report.is_anonymous && (
           <View style={styles.anonymousBadge}>
