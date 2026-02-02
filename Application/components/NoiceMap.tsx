@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { useLocation } from '../hooks/useLocation';
 import { useReports } from '../hooks/useReports';
-import { Report as SupabaseReport } from '../lib/supabase';
+import { Report } from '../lib/types';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,10 +16,7 @@ type Region = {
   longitudeDelta: number;
 };
 
-type ExtendedReport = Partial<SupabaseReport> & {
-  id: string;
-  latitude: number;
-  longitude: number;
+type ExtendedReport = Report & {
   db_level?: number;
   dbLevel?: number;
   description?: string;
