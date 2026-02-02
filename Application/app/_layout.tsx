@@ -8,8 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { AuthProvider } from '../components/AuthProvider';
 import LoadingScreen from '../components/LoadingScreen';
-import ConfigError from '../components/ConfigError';
-import { HAS_SUPABASE } from '../constants/Config';
+import { API_BASE_URL } from '../constants/Config';
 
 /**
  * Root layout for the NoiseMapper app
@@ -35,29 +34,18 @@ export const unstable_settings = {
 export default function RootLayout() {
   const { isReady, isLoading, isAuthenticated } = useAuth();
 
-  // Developer debug: surface whether Supabase config is available (masked)
+  // Developer debug: surface API configuration
   try {
-    const mask = (s?: string) => (s ? `${s.slice(0, 8)}...${s.slice(-8)}` : 'undefined');
     // eslint-disable-next-line no-console
-    console.log('[startup] HAS_SUPABASE=', HAS_SUPABASE);
-    // eslint-disable-next-line no-console
-    console.log('[startup] SUPABASE_URL=', mask(process.env.EXPO_PUBLIC_SUPABASE_URL));
+    console.log('[startup] API_BASE_URL=', API_BASE_URL);
   } catch (e) {
     // ignore in production
-  }
-
-  // If supabase config missing, show helpful error instead of infinite loader
-  if (!HAS_SUPABASE) {
-    return <ConfigError message="Missing Supabase configuration (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY)" />;
   }
 
   // Only show loading screen during initial auth setup
   if (!isReady) {
     return <LoadingScreen />;
   }
-
-  // Don't block rendering for general loading states
-  // This prevents the infinite loading screen issue
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -68,7 +56,7 @@ export default function RootLayout() {
               headerShown: false,
             }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="auth" options={{ headerShown: false }} />
+              <Stack.Screen name="auth/index" options={{ headerShown: false }} />
               <Stack.Screen name="report" options={{ presentation: 'modal' }} />
             </Stack>
             <StatusBar style="auto" />
