@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase, reports as reportsApi, hotspots as hotspotsApi } from '../lib/supabase';
-import type { Report, Hotspot } from '../lib/supabase';
+import { apiClient } from '../lib/api';
+import { Report, CreateReportData } from '../lib/types';
 import { useAppStore } from '../lib/store';
 import { useAuth } from './useAuth';
 import { useLocation } from './useLocation';
@@ -14,7 +14,6 @@ import * as Haptics from 'expo-haptics';
 
 export interface ReportFilters {
   noise_type?: string;
-  status?: string;
   limit?: number;
   offset?: number;
 }
@@ -45,9 +44,11 @@ export const useReports = () => {
   } = useQuery({
     queryKey: ['reports'],
     queryFn: async () => {
-      const { data, error } = await reportsApi.getAll();
-      if (error) throw error;
-      return data as Report[];
+      const response = await apiClient.getReports();
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch reports');
+      }
+      return response.data as Report[];
     },
     enabled: isOnline,
   });
@@ -62,9 +63,11 @@ export const useReports = () => {
     queryKey: ['userReports', user?.id],
     queryFn: async () => {
       if (!user?.id) throw new Error('User not authenticated');
-      const { data, error } = await reportsApi.getUserReports(user.id);
-      if (error) throw error;
-      return data as Report[];
+      const response = await apiClient.getReports({ user_id: user.id });
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch user reports');
+      }
+      return response.data as Report[];
     },
     enabled: isAuthenticated && isOnline && !!user?.id,
   });
@@ -79,85 +82,49 @@ export const useReports = () => {
     queryKey: ['nearbyReports', location?.coords.latitude, location?.coords.longitude],
     queryFn: async () => {
       if (!location?.coords) throw new Error('Location not available');
-      const { data, error } = await reportsApi.getNearby(
-        location.coords.latitude,
-        location.coords.longitude,
-        5 // 5km radius
-      );
-      if (error) throw error;
-      return data as Report[];
+      const response = await apiClient.getReports({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        radius: 5 // 5km radius
+      });
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch nearby reports');
+      }
+      return response.data as Report[];
     },
     enabled: isOnline && !!location?.coords,
   });
 
-  // Fetch hotspots
-  const {
-    data: hotspotsData,
-    isLoading: isLoadingHotspots,
-    error: hotspotsError,
-    refetch: refetchHotspots,
-  } = useQuery({
-    queryKey: ['hotspots'],
-    queryFn: async () => {
-      const { data, error } = await hotspotsApi.getAll(50); // Limit to 50 hotspots
-      if (error) throw error;
-      return data as Hotspot[];
-    },
-    enabled: isOnline,
-  });
-
   // Create report mutation
   const createReportMutation = useMutation({
-    mutationFn: async (reportData: {
-      latitude: number;
-      longitude: number;
-      noise_db: number;
-      noise_type: Report['noise_type'];
-      description?: string;
-      media_urls?: string[];
-      is_anonymous?: boolean;
-    }) => {
+    mutationFn: async (reportData: CreateReportData) => {
       if (!isOnline) {
         // Store offline
         const offlineReport = {
           id: `offline_${Date.now()}`,
           ...reportData,
-          timestamp: new Date().toISOString(),
-          status: 'pending' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         };
         addOfflineReport(offlineReport);
         return offlineReport;
       }
 
-      if (!user?.id && !reportData.is_anonymous) {
-        throw new Error('User must be authenticated or report must be anonymous');
+      const response = await apiClient.createReport(reportData);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create report');
       }
-
-      const { data, error } = await reportsApi.create({
-        user_id: reportData.is_anonymous ? '' : user!.id,
-        latitude: reportData.latitude,
-        longitude: reportData.longitude,
-        noise_db: reportData.noise_db,
-        noise_type: reportData.noise_type,
-        description: reportData.description,
-        media_urls: reportData.media_urls,
-        is_anonymous: reportData.is_anonymous || false,
-        status: 'pending',
-      });
-
-      if (error) throw error;
-      return data as Report;
+      return response.data as Report;
     },
     onSuccess: (newReport) => {
-      if (isOnline) {
+      if (isOnline && newReport) {
         // Add to local state
-        if (newReport && typeof newReport === 'object' && 'id' in newReport) {
-          addReport(newReport as Report);
-        }
+        addReport(newReport);
 
         // Invalidate queries to refetch data
         queryClient.invalidateQueries({ queryKey: ['reports'] });
-        queryClient.invalidateQueries({ queryKey: ['hotspots'] });
+        queryClient.invalidateQueries({ queryKey: ['userReports'] });
+        queryClient.invalidateQueries({ queryKey: ['nearbyReports'] });
 
         // Haptic feedback for successful report
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -216,67 +183,13 @@ export const useReports = () => {
     }
   }, [nearbyReportsData, setNearbyReports]);
 
-  // Realtime subscription for new reports
-  useEffect(() => {
-    if (!isOnline) return;
-
-    const subscription = supabase
-      .channel('reports_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'reports',
-        },
-        (payload) => {
-          console.log('New report received:', payload);
-          // Refetch reports to get updated data
-          refetchReports();
-          refetchNearbyReports();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [isOnline, refetchReports, refetchNearbyReports]);
-
-  // Realtime subscription for hotspot updates
-  useEffect(() => {
-    if (!isOnline) return;
-
-    const subscription = supabase
-      .channel('hotspots_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'hotspots',
-        },
-        (payload) => {
-          console.log('Hotspot updated:', payload);
-          // Refetch hotspots to get updated data
-          refetchHotspots();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [isOnline, refetchHotspots]);
-
   return {
     // State
     reports,
     userReports,
     nearbyReports,
-    hotspots: hotspotsData || [],
-    isLoading: isLoadingReports || isLoadingUserReports || isLoadingNearbyReports || isLoadingHotspots,
-    error: reportsError || userReportsError || nearbyReportsError || hotspotsError,
+    isLoading: isLoadingReports || isLoadingUserReports || isLoadingNearbyReports,
+    error: reportsError || userReportsError || nearbyReportsError,
 
     // Actions
     createReport: createReportMutation.mutate,
@@ -286,7 +199,6 @@ export const useReports = () => {
     refetchReports,
     refetchUserReports,
     refetchNearbyReports,
-    refetchHotspots,
 
     // Utilities
     getReportById: (id: string) => reports.find(report => report.id === id),
