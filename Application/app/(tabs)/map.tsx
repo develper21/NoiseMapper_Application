@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { useLocation } from '../../hooks/useLocation';
 import { useReports } from '../../hooks/useReports';
-import { Report } from '../../lib/supabase';
+import { Report } from '../../lib/types';
 import { noiseUtils } from '../../lib/utils';
 import { MAP_CONFIG, NOISE_THRESHOLDS } from '../../constants/Config';
 import MapFilters from '../../components/MapFilters';
