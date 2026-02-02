@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Report, Hotspot, User } from './supabase';
+import { Report, User } from './types';
 import { APP_CONFIG } from '../constants/Config';
 
 /**
@@ -19,10 +19,6 @@ interface AppState {
   reports: Report[];
   userReports: Report[];
   nearbyReports: Report[];
-
-  // Hotspots state
-  hotspots: Hotspot[];
-  nearbyHotspots: Hotspot[];
 
   // UI state
   selectedReport: Report | null;
@@ -57,9 +53,6 @@ interface AppState {
   setUserReports: (reports: Report[]) => void;
   setNearbyReports: (reports: Report[]) => void;
 
-  setHotspots: (hotspots: Hotspot[]) => void;
-  setNearbyHotspots: (hotspots: Hotspot[]) => void;
-
   setSelectedReport: (report: Report | null) => void;
   setReportFormVisible: (isVisible: boolean) => void;
 
@@ -79,7 +72,6 @@ interface AppState {
   getTotalReports: () => number;
   getUserReportCount: () => number;
   getNearbyReportCount: () => number;
-  getHighNoiseHotspots: () => Hotspot[];
 }
 
 // Default settings
@@ -110,9 +102,6 @@ export const useAppStore = create<AppState>()(
       userReports: [],
       nearbyReports: [],
 
-      hotspots: [],
-      nearbyHotspots: [],
-
       selectedReport: null,
       isReportFormVisible: false,
 
@@ -142,9 +131,6 @@ export const useAppStore = create<AppState>()(
 
       setUserReports: (userReports) => set({ userReports }),
       setNearbyReports: (nearbyReports) => set({ nearbyReports }),
-
-      setHotspots: (hotspots) => set({ hotspots }),
-      setNearbyHotspots: (nearbyHotspots) => set({ nearbyHotspots }),
 
       setSelectedReport: (selectedReport) => set({ selectedReport }),
       setReportFormVisible: (isReportFormVisible) => set({ isReportFormVisible }),
@@ -179,11 +165,6 @@ export const useAppStore = create<AppState>()(
       getTotalReports: () => get().reports.length,
       getUserReportCount: () => get().userReports.length,
       getNearbyReportCount: () => get().nearbyReports.length,
-
-      getHighNoiseHotspots: () => {
-        const { hotspots } = get();
-        return hotspots.filter((hotspot) => hotspot.avg_noise_db >= 75);
-      },
     }),
     {
       name: 'noisemapper-storage',
@@ -242,20 +223,13 @@ export const useReports = () => {
 };
 
 export const useHotspots = () => {
-  const {
-    hotspots,
-    nearbyHotspots,
-    setHotspots,
-    setNearbyHotspots,
-    getHighNoiseHotspots,
-  } = useAppStore();
-
+  // This hook can be implemented later when we add hotspot functionality
   return {
-    hotspots,
-    nearbyHotspots,
-    setHotspots,
-    setNearbyHotspots,
-    getHighNoiseHotspots,
+    hotspots: [],
+    nearbyHotspots: [],
+    setHotspots: () => {},
+    setNearbyHotspots: () => {},
+    getHighNoiseHotspots: () => [],
   };
 };
 
