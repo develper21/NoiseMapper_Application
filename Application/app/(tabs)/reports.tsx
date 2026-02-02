@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import { useReports } from '../../hooks/useReports';
 import { useAuth } from '../../hooks/useAuth';
-import { Report } from '../../lib/supabase';
+import { Report } from '../../lib/types';
 import HotspotCard from '../../components/HotspotCard';
 import { NOISE_TYPES } from '../../constants/Config';
 
