@@ -18,7 +18,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
 import { useReports } from '../hooks/useReports';
-import { Report } from '../lib/supabase';
+import { Report } from '../lib/types';
 import { noiseUtils, locationUtils, NOISE_TYPES } from '../lib/utils';
 
 import NoiseMeter from '../components/NoiseMeter';
@@ -130,7 +130,7 @@ export default function ReportScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        // In a real app, you'd upload the image to Supabase Storage here
+        // In a real app, you'd upload the image to your backend storage here
         // For now, we'll just store the local URI
         setFormData(prev => ({
           ...prev,
