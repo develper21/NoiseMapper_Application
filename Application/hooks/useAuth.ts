@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { apiClient, User } from '../lib/api';
 import { useAppStore } from '../lib/store';
-import { User } from '../lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { showNotification } from '../utils/notifications';
+import * as SecureStore from 'expo-secure-store';
 
 export interface AuthError {
   message: string;
@@ -20,171 +20,68 @@ export const useAuth = () => {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-    let authSubscription: { unsubscribe: () => void } | null = null;
-
-    const initialize = async () => {
-      if (!isMounted) return;
-      
-      try {
-        setLoading(true);
-        
-        // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          showNotification('error', 'Authentication Error', 'Failed to check authentication status');
-          return;
-        }
-
-        if (session?.user) {
-          await handleSignIn(session.user);
-          showNotification('success', 'Welcome back!', 'You have been automatically signed in');
-        } else {
-          setUser(null);
-          setAuthenticated(false);
-        }
-
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            if (!isMounted) return;
-
-            try {
-              if (event === 'SIGNED_IN' && session?.user) {
-                await handleSignIn(session.user);
-              } else if (event === 'SIGNED_OUT') {
-                setUser(null);
-                setAuthenticated(false);
-                showNotification('info', 'Signed out', 'You have been signed out');
-              } else if (event === 'TOKEN_REFRESHED') {
-                // Handle token refresh
-                console.log('Token refreshed');
-              } else if (event === 'USER_UPDATED') {
-                // Handle user update
-                console.log('User updated');
-              }
-            } catch (error) {
-              console.error('Auth state change error:', error);
-              showNotification('error', 'Authentication Error', 'An error occurred during authentication');
-            }
-          }
-        );
-
-        authSubscription = subscription;
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        showNotification('error', 'Authentication Error', 'Failed to initialize authentication');
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          setIsInitializing(false);
-        }
-      }
-    };
-
-    initialize();
-
-    return () => {
-      isMounted = false;
-      if (authSubscription) {
-        authSubscription.unsubscribe();
-      }
-    };
+    initializeAuth();
   }, []);
 
   const initializeAuth = async () => {
-    setLoading(true);
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error('Error getting session:', error);
+      setLoading(true);
+      
+      // Check for stored token
+      const token = await SecureStore.getItemAsync('auth_token');
+      if (!token) {
+        setUser(null);
+        setAuthenticated(false);
         return;
       }
 
-      if (session?.user) {
-        await handleSignIn(session.user);
+      // Set token in API client
+      apiClient.setToken(token);
+
+      // Get current user
+      const response = await apiClient.getCurrentUser();
+      if (response.success && response.data) {
+        setUser(response.data);
+        setAuthenticated(true);
+        showNotification('success', 'Welcome back!', 'You have been automatically signed in');
       } else {
+        // Invalid token, remove it
+        await SecureStore.deleteItemAsync('auth_token');
         setUser(null);
         setAuthenticated(false);
       }
     } catch (error) {
-      console.error('Error initializing auth:', error);
+      console.error('Auth initialization error:', error);
+      await SecureStore.deleteItemAsync('auth_token');
+      setUser(null);
+      setAuthenticated(false);
     } finally {
       setLoading(false);
       setIsInitializing(false);
     }
   };
 
-  const handleSignIn = async (authUser: any) => {
-    try {
-      // Get user profile from users table
-      const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-
-      if (error && (error as any).code !== 'PGRST116') { // Not found error
-        console.error('Error fetching user profile:', error);
-      }
-
-      const user: User = {
-        id: authUser.id,
-        email: authUser.email!,
-        name: profile?.name || authUser.user_metadata?.name || undefined,
-        avatar_url: profile?.avatar_url || authUser.user_metadata?.avatar_url || undefined,
-        created_at: profile?.created_at || authUser.created_at,
-        updated_at: profile?.updated_at || new Date().toISOString(),
-      };
-
-      setUser(user);
-      setAuthenticated(true);
-
-      // Haptic feedback for successful sign in
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (error) {
-      console.error('Error handling sign in:', error);
-    }
-  };
-
-  const handleSignOut = () => {
-    setUser(null);
-    setAuthenticated(false);
-  };
-
   const signUp = async (email: string, password: string, name?: string): Promise<AuthResult> => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-        },
-      });
+      const response = await apiClient.signUp(email, password, name);
 
-      if (error) {
-        return { user: null, error: { message: error.message, code: error.message } };
+      if (response.success && response.data) {
+        // Store token
+        await SecureStore.setItemAsync('auth_token', response.data.token);
+        
+        // Update state
+        setUser(response.data.user);
+        setAuthenticated(true);
+        
+        // Haptic feedback
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        
+        return { user: response.data.user, error: null };
+      } else {
+        return { user: null, error: { message: response.error || 'Sign up failed' } };
       }
-
-      if (data.user && !data.session) {
-        // Email confirmation required
-        return {
-          user: null,
-          error: {
-            message: 'Please check your email to confirm your account.',
-            code: 'email_confirmation_required'
-          }
-        };
-      }
-
-      return { user: data.user as User, error: null };
     } catch (error: any) {
       return {
         user: null,
@@ -199,16 +96,23 @@ export const useAuth = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const response = await apiClient.signIn(email, password);
 
-      if (error) {
-        return { user: null, error: { message: error.message, code: error.message } };
+      if (response.success && response.data) {
+        // Store token
+        await SecureStore.setItemAsync('auth_token', response.data.token);
+        
+        // Update state
+        setUser(response.data.user);
+        setAuthenticated(true);
+        
+        // Haptic feedback
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        
+        return { user: response.data.user, error: null };
+      } else {
+        return { user: null, error: { message: response.error || 'Sign in failed' } };
       }
-
-      return { user: data.user as User, error: null };
     } catch (error: any) {
       return {
         user: null,
@@ -220,42 +124,25 @@ export const useAuth = () => {
   };
 
   const signInWithGoogle = async (): Promise<AuthResult> => {
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'noisemapper://auth/callback',
-        },
-      });
-
-      if (error) {
-        return { user: null, error: { message: error.message, code: error.message } };
-      }
-
-      // OAuth will redirect, so we return success here
-      return { user: null, error: null };
-    } catch (error: any) {
-      return {
-        user: null,
-        error: { message: error.message || 'An unexpected error occurred', code: 'unknown_error' }
-      };
-    } finally {
-      setLoading(false);
-    }
+    // TODO: Implement Google OAuth with custom backend
+    return {
+      user: null,
+      error: { message: 'Google sign in not yet implemented', code: 'not_implemented' }
+    };
   };
 
   const signOut = async (): Promise<{ error: AuthError | null }> => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        return { error: { message: error.message, code: error.message } };
-      }
-
+      await apiClient.signOut();
+      await SecureStore.deleteItemAsync('auth_token');
+      
+      setUser(null);
+      setAuthenticated(false);
+      
+      showNotification('info', 'Signed out', 'You have been signed out');
+      
       return { error: null };
     } catch (error: any) {
       return {
@@ -267,21 +154,10 @@ export const useAuth = () => {
   };
 
   const resetPassword = async (email: string): Promise<{ error: AuthError | null }> => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'noisemapper://auth/reset-password',
-      });
-
-      if (error) {
-        return { error: { message: error.message, code: error.message } };
-      }
-
-      return { error: null };
-    } catch (error: any) {
-      return {
-        error: { message: error.message || 'An unexpected error occurred', code: 'unknown_error' }
-      };
-    }
+    // TODO: Implement password reset with custom backend
+    return {
+      error: { message: 'Password reset not yet implemented', code: 'not_implemented' }
+    };
   };
 
   const updateProfile = async (updates: { name?: string; avatar_url?: string }): Promise<{ error: AuthError | null }> => {
@@ -290,21 +166,14 @@ export const useAuth = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', user.id)
-        .select()
-        .single();
+      const response = await apiClient.updateProfile(updates);
 
-      if (error) {
-        return { error: { message: error.message, code: error.message } };
+      if (response.success && response.data) {
+        setUser(response.data);
+        return { error: null };
+      } else {
+        return { error: { message: response.error || 'Failed to update profile' } };
       }
-
-      // Update local state
-      setUser({ ...user, ...data });
-
-      return { error: null };
     } catch (error: any) {
       return {
         error: { message: error.message || 'An unexpected error occurred', code: 'unknown_error' }
