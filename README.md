@@ -1,26 +1,26 @@
 # City Noise Pollution Mapper 🗺️🔊
 
-A comprehensive React Native mobile app for crowdsourced noise pollution mapping and reporting. Built with Expo, TypeScript, Supabase, and modern React Native patterns.
+A comprehensive React Native mobile app for crowdsourced noise pollution mapping and reporting. Built with Expo, TypeScript, custom Node.js backend with PostgreSQL, and modern React Native patterns.
 
 ## 🌟 Features
 
 ### Core Functionality
 - **📍 GPS-Based Reporting**: One-tap noise reporting with automatic location detection
 - **🔊 Real-time Noise Meter**: Built-in decibel meter using device microphone
-- **🗺️ Interactive Maps**: Live heatmap visualization of noise hotspots
-- **📊 Data Analytics**: Comprehensive reporting and trend analysis
-- **👥 Community Features**: Discussion threads and social sharing
+- **🗺️ Interactive Maps**: Live map visualization of noise hotspots with Google Maps
+- **📊 Dashboard**: Statistics overview with nearby reports and high noise areas
+- **🔐 Secure Authentication**: JWT-based authentication with secure token storage
 
 ### Advanced Features
 - **📱 Offline Support**: Queue reports for upload when connectivity returns
 - **🔔 Push Notifications**: Alerts for nearby noise hotspots
-- **📷 Media Attachments**: Photo, video, and audio recording support
-- **🔒 Privacy Controls**: Anonymous reporting and data encryption
-- **📈 Data Export**: CSV/PDF reports for authorities and researchers
+- **📷 Media Attachments**: Photo support for noise reports
+- **🔒 Privacy Controls**: Anonymous reporting option
+- **🎨 Dark Mode**: Automatic theme switching based on system preference
 
 ## 🚀 Tech Stack
 
-### Frontend
+### Frontend (Mobile App)
 - **React Native 0.81** with **Expo SDK 54**
 - **TypeScript** for type safety
 - **Expo Router** for file-based navigation
@@ -28,11 +28,19 @@ A comprehensive React Native mobile app for crowdsourced noise pollution mapping
 - **Zustand** for state management
 - **TanStack Query** for data fetching and caching
 
-### Backend & Services
-- **Supabase** (PostgreSQL + Auth + Storage + Realtime)
+### Backend (API Server)
+- **Node.js** with **Express** framework
+- **PostgreSQL** database
+- **Drizzle ORM** for type-safe database operations
+- **JWT** for authentication
+- **bcrypt** for password hashing
+
+### Services & APIs
 - **Google Maps API** for mapping functionality
 - **Expo AV** for audio processing
 - **Expo Location** for GPS services
+- **Expo Notifications** for push notifications
+- **Expo Image Picker** for media attachments
 
 ### Development Tools
 - **ESLint** for code quality
@@ -45,30 +53,56 @@ A comprehensive React Native mobile app for crowdsourced noise pollution mapping
 ### Prerequisites
 - **Node.js** 18+ and **npm/yarn**
 - **Expo CLI**: `npm install -g @expo/cli`
-- **Supabase Account**: [supabase.com](https://supabase.com)
-- **Google Maps API Key**: [Google Cloud Console](https://console.cloud.google.com)
+- **PostgreSQL** 14+ for the backend database
+- **Google Maps API Key**: [Google Cloud Console](https://console.cloud.google)
 
 ### 1. Clone & Install
 ```bash
 git clone <repository-url>
-cd noisemapper
+cd NoiseMapper
+```
+
+### 2. Backend Setup
+
+Navigate to the server directory and set up the backend:
+```bash
+cd server
 npm install
 ```
 
-### 2. Environment Setup
-Create a `.env` file in the root directory:
+Create a `.env.local` file in the server directory:
 ```env
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+DATABASE_URL=postgresql://username:password@localhost:5432/noisemapper
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+PORT=3001
 ```
 
-### 3. Supabase Setup
-1. Create a new project on [supabase.com](https://supabase.com)
-2. Go to SQL Editor and run the schema from `supabase-schema.sql`
-3. Enable Row Level Security (RLS) on all tables
-4. Set up authentication providers (Email + Google OAuth)
-5. Create storage bucket named 'media'
+Generate and run database migrations:
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+Start the backend server:
+```bash
+npm run dev
+```
+
+The API will be available at `http://localhost:3001`
+
+### 3. Frontend Setup
+
+Navigate back to the root directory and install frontend dependencies:
+```bash
+cd ..
+npm install
+```
+
+Create a `.env` file in the root directory:
+```env
+EXPO_PUBLIC_API_BASE_URL=http://localhost:3001
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+```
 
 ### 4. Development
 ```bash
@@ -97,7 +131,7 @@ npm run build:ios
 ## 📁 Project Structure
 
 ```
-noisemapper/
+NoiseMapper/
 ├── app/                          # Expo Router app directory
 │   ├── _layout.tsx              # Root layout with providers
 │   ├── (tabs)/                  # Tab navigation
@@ -106,47 +140,79 @@ noisemapper/
 │   │   ├── map.tsx              # Map screen
 │   │   ├── reports.tsx          # Reports screen
 │   │   └── profile.tsx          # Profile screen
-│   ├── report.tsx               # Report submission modal
-│   └── +not-found.tsx           # Error screen
+│   ├── auth/                    # Authentication screens
+│   │   └── index.tsx            # Login/Signup screen
+│   ├── report.tsx               # Report submission screen
+│   └── providers/               # React context providers
+│       └── ThemeProvider.tsx     # Theme management
 ├── components/                   # Reusable UI components
+│   ├── AuthForm.tsx             # Authentication form
 │   ├── AuthProvider.tsx         # Authentication context
-│   ├── LoadingScreen.tsx        # Loading states
-│   ├── StatsCard.tsx            # Statistics display
+│   ├── BrandLogo.tsx            # Logo component
+│   ├── ConfigError.tsx          # Error display
 │   ├── HotspotCard.tsx          # Noise report cards
-│   ├── QuickReportButton.tsx    # FAB for reporting
+│   ├── LoadingScreen.tsx        # Loading states
+│   ├── MapFilters.tsx           # Map filtering controls
 │   ├── NoiseMeter.tsx           # Real-time noise meter
-│   └── MapFilters.tsx           # Map filtering controls
+│   ├── NoiceMap.tsx             # Map component
+│   ├── QuickReportButton.tsx    # FAB for reporting
+│   └── StatsCard.tsx            # Statistics display
 ├── hooks/                       # Custom React hooks
 │   ├── useAuth.ts               # Authentication logic
 │   ├── useLocation.ts           # Location services
 │   ├── useReports.ts            # Reports data management
 │   └── useTheme.ts              # Theme management
 ├── lib/                         # Core utilities and services
-│   ├── supabase.ts              # Supabase client & API
+│   ├── api.ts                   # API client with axios
 │   ├── store.ts                 # Zustand store
+│   ├── types.ts                 # TypeScript type definitions
 │   └── utils.ts                 # Helper functions
 ├── constants/                   # App constants
 │   └── Config.ts                # Configuration values
+├── server/                      # Backend API server
+│   ├── src/                     # Source code
+│   │   ├── db/                  # Database schema and migrations
+│   │   ├── middleware/          # Express middleware
+│   │   ├── routes/              # API routes
+│   │   └── index.ts             # Server entry point
+│   ├── drizzle.config.ts        # Drizzle ORM configuration
+│   ├── package.json             # Backend dependencies
+│   └── README.md                # Backend documentation
+├── theme/                       # Theme configuration
+│   └── colors.ts                # Color definitions
+├── utils/                       # Utility functions
+│   └── notifications.tsx         # Notification utilities
 ├── assets/                      # Static assets
-└── supabase-schema.sql          # Database schema
+│   ├── logo.svg
+│   ├── splash-icon.png
+│   └── notification-icon.png
+├── .env.example                 # Environment variables template
+├── app.json                     # Expo configuration
+├── package.json                 # Frontend dependencies
+├── tsconfig.json                # TypeScript configuration
+└── README.md                    # This file
 ```
 
 ## 🔧 Configuration
 
-### Supabase Schema
-The complete database schema is in `supabase-schema.sql`. Key tables:
-- `users` - User profiles
+### Backend Configuration
+The backend uses PostgreSQL with Drizzle ORM. Key tables:
+- `users` - User profiles with authentication data
 - `reports` - Noise pollution reports
-- `hotspots` - Aggregated noise hotspots
-- `discussions` - Community discussions
+- `user_sessions` - JWT session management
+
+See `server/README.md` for detailed backend setup instructions.
 
 ### App Configuration
 Update `constants/Config.ts` for:
-- Supabase credentials
 - Google Maps API key
 - Noise level thresholds
 - Default map settings
 - Feature flags
+
+Environment variables for the frontend:
+- `EXPO_PUBLIC_API_BASE_URL` - Backend API URL
+- `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` - Google Maps API key
 
 ## 🎨 Design System
 
@@ -172,31 +238,29 @@ Update `constants/Config.ts` for:
 
 ### Supported Methods
 - **Email/Password**: Traditional sign up/sign in
-- **Google OAuth**: Social authentication
-- **Anonymous**: Privacy-focused reporting
+- **Anonymous Reporting**: Privacy-focused reporting option
 
 ### Implementation
-Uses Supabase Auth with:
+Uses custom JWT-based authentication with:
 - JWT tokens for API access
+- Secure token storage with Expo SecureStore
+- Password hashing with bcrypt
 - Automatic session management
-- Secure password policies
-- Account recovery flows
+- Protected routes for authenticated users
 
 ## 🗺️ Mapping Features
 
 ### Interactive Map
 - **Provider**: Google Maps (via react-native-maps)
 - **Features**:
-  - Real-time user location
+  - Real-time user location tracking
   - Custom markers for noise reports
-  - Heatmap visualization
-  - Clustering for performance
+  - Color-coded markers based on noise level
+  - Filter by noise type and decibel range
 
 ### Filtering
 - **Noise Types**: Traffic, Construction, Events, Industrial, Other
-- **Decibel Range**: 0-120 dB with presets
-- **Radius**: 1-25km from user location
-- **Time Range**: Recent reports only
+- **Noise Levels**: Color-coded by severity (Green, Yellow, Orange, Red)
 
 ## 📊 Noise Reporting
 
@@ -256,33 +320,6 @@ Uses Supabase Auth with:
 - **Scheduling**: Time-based delivery
 - **Analytics**: Engagement tracking
 
-## 👥 Community Features
-
-### Discussion System
-- **Threaded Comments**: Per-report discussions
-- **Moderation**: Community guidelines
-- **Notifications**: Mention and reply alerts
-- **Rich Media**: Image and link support
-
-### Social Features
-- **Sharing**: Report and hotspot sharing
-- **Petitions**: Template-based advocacy
-- **Leaderboards**: Community contribution tracking
-- **Badges**: Achievement system
-
-## 📈 Analytics & Export
-
-### Data Export
-- **CSV Reports**: Structured data export
-- **PDF Summaries**: Visual report generation
-- **Authority Integration**: Government portal uploads
-- **Research Access**: Academic data sharing
-
-### Analytics Dashboard
-- **Usage Metrics**: App engagement data
-- **Geographic Trends**: Noise pattern analysis
-- **User Behavior**: Reporting patterns
-- **Impact Assessment**: Policy effectiveness
 
 ## 🧪 Testing
 
@@ -359,8 +396,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙏 Acknowledgments
 
 - **Expo Team** for the amazing development platform
-- **Supabase** for the backend infrastructure
 - **React Native Community** for excellent libraries
+- **Google Maps** for mapping services
 - **Open Source Contributors** for community support
 
 ## 📞 Support
